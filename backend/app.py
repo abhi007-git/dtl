@@ -6,9 +6,9 @@ import traceback
 
 
 # Configure Gemini
-import google.generativeai as genai
 import os
-import tempfile
+import requests
+import base64
 from pathlib import Path
 
 # Try to load .env file if present
@@ -26,12 +26,50 @@ GENAI_API_KEY = os.environ.get("GENAI_API_KEY")
 if not GENAI_API_KEY:
     print("WARNING: GENAI_API_KEY not found in environment variables.")
 
-if GENAI_API_KEY:
-    genai.configure(api_key=GENAI_API_KEY)
-
 app = Flask(__name__)
 # Enable CORS for all domains
 CORS(app, resources={r"/*": {"origins": "*"}})
+
+def call_gemini_api(prompt, content_parts):
+    """
+    Helper to call Gemini 1.5 Flash REST API.
+    content_parts: list of dicts (text or inline_data)
+    """
+    if not GENAI_API_KEY:
+        raise ValueError("API Key not set")
+        
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GENAI_API_KEY}"
+    
+    # Construct the payload
+    # Gemini REST API expects "contents": [ { "parts": [ ... ] } ]
+    payload = {
+        "contents": [{
+            "parts": [
+                {"text": prompt},
+                *content_parts
+            ]
+        }]
+    }
+    
+    response = requests.post(url, json=payload)
+    
+    if response.status_code != 200:
+        print(f"Gemini API Error: {response.status_code} - {response.text}")
+        try:
+            err_json = response.json()
+            return None, err_json.get('error', {}).get('message', 'Unknown Error')
+        except:
+            return None, response.text
+
+    try:
+        data = response.json()
+        # Parse the response to get text
+        # candidates[0].content.parts[0].text
+        text = data.get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('text', '')
+        return text, None
+    except Exception as e:
+        print(f"Error parsing Gemini response: {e}")
+        return None, str(e)
 
 @app.route('/api/ocr', methods=['POST'])
 def ocr_endpoint():
@@ -47,29 +85,34 @@ def transcribe_endpoint():
         if audio_file.filename == '':
             return jsonify({'error': 'No selected file'}), 400
 
-        # Save to temp file because GenerativeAI prefers file paths or direct upload
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp:
-            audio_file.save(tmp.name)
-            tmp_path = tmp.name
-
-        print("Transcribing audio...")
+        # Read file bytes directly from memory
+        audio_bytes = audio_file.read()
         
-        # Upload the file to Gemini
-        gemini_file = genai.upload_file(tmp_path, mime_type="audio/wav")
+        # Base64 encode
+        audio_b64 = base64.b64encode(audio_bytes).decode('utf-8')
         
-        # Prompt for transcription
-        model = genai.GenerativeModel("gemini-1.5-flash")
-        result = model.generate_content([
-            "Listen to this audio commands and transcribe exactly what is said. Output ONLY the text.", 
-            gemini_file
-        ])
+        print("Transcribing audio (Direct API)...")
         
-        # Cleanup
-        os.remove(tmp_path)
+        # Determine mime type (default to audio/wav, but browser sends webm usually)
+        mime_type = "audio/wav"
+        if audio_file.filename.endswith('.webm'):
+            mime_type = "audio/webm"
         
-        text = result.text.strip()
+        # Build prompt
+        prompt = "Listen to this audio commands and transcribe exactly what is said. Output ONLY the text."
+        content_parts = [{
+            "inline_data": {
+                "mime_type": mime_type,
+                "data": audio_b64
+            }
+        }]
+        
+        text, error = call_gemini_api(prompt, content_parts)
+        
+        if error:
+            return jsonify({'error': error}), 500
+            
         print(f"Transcription: {text}")
-        
         return jsonify({'text': text})
 
     except Exception as e:
@@ -91,23 +134,23 @@ def analyze_sign_endpoint():
         else:
             encoded = image_data
             
-        # Create a dictionary representing the image for Gemini
-        # We can pass the base64 data directly with 'mime_type'
-        image_part = {
-            "mime_type": "image/jpeg",
-            "data": encoded
-        }
-
-        print("Analyzing sign with Gemini...")
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        print("Analyzing sign with Gemini (Direct API)...")
         
-        # Prompt from original frontend code
         prompt = "EXTRACT TEXT ONLY. Look closely at the image. Read the big illuminated text on the signboard. Ignore background items. If it says 'RADIOLOGY', output 'Radiology'. Just the text."
         
-        result = model.generate_content([prompt, image_part])
-        text = result.text.strip()
-        print(f"Sign Analysis: {text}")
+        content_parts = [{
+            "inline_data": {
+                "mime_type": "image/jpeg",
+                "data": encoded
+            }
+        }]
         
+        text, error = call_gemini_api(prompt, content_parts)
+
+        if error:
+            return jsonify({'error': error}), 500
+            
+        print(f"Sign Analysis: {text}")
         return jsonify({'text': text})
 
     except Exception as e:
