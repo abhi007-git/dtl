@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navigation QR Codes</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            text-align: center;
+            padding: 20px;
+            background: #f0f0f0;
+        }
+
+        .grid {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            width: 220px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        img {
+            width: 100%;
+            height: auto;
+            margin-bottom: 10px;
+        }
+
+        h3 {
+            margin: 10px 0 5px;
+            color: #333;
+            font-size: 1.2rem;
+        }
+
+        code {
+            background: #eee;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            color: #d63384;
+            font-size: 1rem;
+            margin-bottom: 5px;
+        }
+
+        .desc {
+            font-size: 0.9rem;
+            color: #666;
+            font-style: italic;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Navigation QR Codes</h1>
+    <p>Print these and place them at the corresponding locations.</p>
+
+    <div className="grid">
+        <div class="card">
+            <img src="./qrcodes/QR_01.png" alt="QR_01">
+            <code>QR_01</code>
+            <h3>Lift</h3>
+            <div class="desc">"Move right 1 step..."</div>
+        </div>
+        <div class="card">
+            <img src="./qrcodes/QR_02.png" alt="QR_02">
+            <code>QR_02</code>
+            <h3>Down the stairs</h3>
+            <div class="desc">"Turn left..."</div>
+        </div>
+        <div class="card">
+            <img src="./qrcodes/QR_03.png" alt="QR_03">
+            <code>QR_03</code>
+            <h3>Down the stairs</h3>
+            <div class="desc">"Turn left..."</div>
+        </div>
+        <div class="card">
+            <img src="./qrcodes/QR_04.png" alt="QR_04">
+            <code>QR_04</code>
+            <h3>Floor 1</h3>
+            <div class="desc">"Turn left, walk straight..."</div>
+        </div>
+    </div>
+</body>
+
+</html>

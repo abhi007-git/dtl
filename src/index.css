@@ -1,0 +1,105 @@
+:root {
+  --bg-color: #050505;
+  --card-bg: #111111;
+  --text-primary: #ffffff;
+  --text-secondary: #aaaaaa;
+  --accent-primary: #00ff9d;
+  --accent-secondary: #00d2ff;
+  --error: #ff0055;
+  --font-family: 'Inter', system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg-color);
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+h1, h2, h3 {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.voice-active {
+  animation: pulse-glow 2s infinite;
+}
+
+@keyframes pulse-glow {
+  0% { box-shadow: 0 0 0 0 rgba(0, 255, 157, 0.4); }
+  70% { box-shadow: 0 0 0 15px rgba(0, 255, 157, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(0, 255, 157, 0); }
+}
+
+/* High Contrast & Large Text Utilities for Visually Impaired */
+.hc-text {
+  font-size: 1.5rem;
+  line-height: 1.6;
+}
+
+.hc-button {
+  background: var(--card-bg);
+  border: 2px solid var(--accent-primary);
+  color: var(--accent-primary);
+  padding: 1rem 2rem;
+  font-size: 1.25rem;
+  font-weight: bold;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.hc-button:hover, .hc-button:focus {
+  background: var(--accent-primary);
+  color: var(--bg-color);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(0, 255, 157, 0.3);
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.card {
+  background: var(--card-bg);
+  border-radius: 20px;
+  padding: 2rem;
+  border: 1px solid rgba(255,255,255,0.1);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+
+.status-indicator {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+}
+
+.status-indicator.on {
+  background: var(--accent-primary);
+  box-shadow: 0 0 10px var(--accent-primary);
+}
