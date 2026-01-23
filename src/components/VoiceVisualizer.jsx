@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { useVoice } from '../context/VoiceContext';
 
 const VoiceVisualizer = () => {
-    const { listening, transcript, status, audioLevel } = useVoice();
+    const { listening, transcript, status, audioLevel, startManualRecord, stopManualRecord } = useVoice();
     const [bars, setBars] = useState([20, 20, 20, 20, 20]);
+    const [isManual, setIsManual] = useState(false);
 
     useEffect(() => {
         if (!listening) {
@@ -18,6 +19,18 @@ const VoiceVisualizer = () => {
 
     }, [audioLevel, listening]);
 
+    const handleTouchStart = (e) => {
+        e.preventDefault(); // Prevent ghost clicks
+        setIsManual(true);
+        startManualRecord();
+    };
+
+    const handleTouchEnd = (e) => {
+        e.preventDefault();
+        setIsManual(false);
+        stopManualRecord();
+    };
+
     const styles = {
         container: {
             position: 'fixed',
@@ -30,7 +43,7 @@ const VoiceVisualizer = () => {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            pointerEvents: 'none'
+            pointerEvents: 'auto' // Re-enable pointer events for button
         },
         transcript: {
             marginBottom: '10px',
@@ -41,32 +54,53 @@ const VoiceVisualizer = () => {
             borderRadius: '10px',
             fontFamily: 'monospace',
             textAlign: 'center',
-            maxWidth: '80%'
+            maxWidth: '80%',
+            pointerEvents: 'none'
         },
         status: {
-            color: status === 'Recording...' ? '#ff4444' : '#00ff9d',
+            color: status.includes('Recording') ? '#ff4444' : '#00ff9d',
             marginBottom: '10px',
             fontSize: '1rem',
             fontWeight: 'bold',
-            textTransform: 'uppercase'
+            textTransform: 'uppercase',
+            pointerEvents: 'none'
         },
         visualizer: {
             display: 'flex',
             gap: '10px',
             height: '60px',
-            alignItems: 'flex-end'
+            alignItems: 'flex-end',
+            marginBottom: '15px',
+            pointerEvents: 'none'
         },
         bar: {
             width: '15px',
-            background: status === 'Recording...' ? '#ff4444' : (listening ? '#00ff9d' : '#333'),
+            background: status.includes('Recording') ? '#ff4444' : (listening ? '#00ff9d' : '#333'),
             borderRadius: '10px',
             transition: 'height 0.1s ease, background 0.3s ease'
+        },
+        micBtn: {
+            width: '80px',
+            height: '80px',
+            borderRadius: '50%',
+            background: isManual ? '#ff4444' : 'rgba(255,255,255,0.2)',
+            border: '2px solid white',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '2rem',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            boxShadow: isManual ? '0 0 20px #ff4444' : 'none',
+            userSelect: 'none',
+            WebkitUserSelect: 'none',
+            touchAction: 'none' // Important for preventing scroll while holding
         }
     };
 
     return (
         <div style={styles.container}>
-            <div style={styles.status}>{status}</div>
+            <div style={styles.status}>{status} (Vol: {Math.round(audioLevel)})</div>
 
             {transcript && (
                 <div style={styles.transcript}>
@@ -82,6 +116,18 @@ const VoiceVisualizer = () => {
                     />
                 ))}
             </div>
+
+            <div
+                style={styles.micBtn}
+                onMouseDown={handleTouchStart}
+                onMouseUp={handleTouchEnd}
+                onMouseLeave={handleTouchEnd}
+                onTouchStart={handleTouchStart}
+                onTouchEnd={handleTouchEnd}
+            >
+                🎙️
+            </div>
+            <div style={{ color: '#aaa', fontSize: '0.8rem', marginTop: '10px' }}>Hold to Speak</div>
         </div>
     );
 };

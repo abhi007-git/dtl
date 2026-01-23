@@ -164,9 +164,25 @@ export const VoiceProvider = ({ children }) => {
             detectVoiceActivity();
         } catch (err) {
             console.error("Mic Error:", err);
-            setStatus("Mic Error");
-            speak("Microphone access denied or error.");
+            setStatus("Mic Error: " + err.message);
+            speak("Microphone error. Please allow access.");
         }
+    };
+
+    // MANUAL CONTROLS FOR PRESENTATION
+    const startManualRecord = () => {
+        if (!mediaRecorderRef.current || isRecordingRef.current) return;
+        isRecordingRef.current = true;
+        chunksRef.current = [];
+        mediaRecorderRef.current.start();
+        setStatus("Recording (Manual)...");
+    };
+
+    const stopManualRecord = () => {
+        if (!mediaRecorderRef.current || !isRecordingRef.current) return;
+        isRecordingRef.current = false;
+        mediaRecorderRef.current.stop();
+        setStatus("Processing...");
     };
 
     const stopListening = () => {
@@ -198,7 +214,9 @@ export const VoiceProvider = ({ children }) => {
             transcript,
             resetTranscript,
             status,
-            audioLevel
+            audioLevel,
+            startManualRecord,
+            stopManualRecord
         }}>
             {children}
         </VoiceContext.Provider>
