@@ -13,7 +13,8 @@ const QRNavigation = () => {
     const { speak } = useVoice();
     const [data, setData] = useState('Scanning...');
     const scannerRef = useRef(null);
-    const hasSpokenRef = useRef(false);
+    const lastScanTime = useRef(0);
+    const SCAN_COOLDOWN = 5000; // 5 seconds
 
     useEffect(() => {
         speak("Navigation Mode. Scanning for QR codes.");
@@ -43,8 +44,16 @@ const QRNavigation = () => {
     }, []);
 
     const onScanSuccess = (decodedText, decodedResult) => {
-        if (decodedText === data) return;
+        const now = Date.now();
 
+        // Cooldown Check
+        if (now - lastScanTime.current < SCAN_COOLDOWN) {
+            return;
+        }
+
+        if (decodedText === data && now - lastScanTime.current < 10000) return; // double check strict debounce for same code
+
+        lastScanTime.current = now;
         setData(decodedText);
         const message = NAV_DATA[decodedText] || `Unknown Location Code: ${decodedText}`;
         speak(message);
@@ -55,7 +64,12 @@ const QRNavigation = () => {
     };
 
     const simulateScan = (code) => {
-        onScanSuccess(code, null);
+        // Bypass cooldown logic for manual testing, or respect it if desired
+        // For demo, we force it:
+        lastScanTime.current = Date.now();
+        setData(code);
+        const message = NAV_DATA[code] || `Unknown Location Code: ${code}`;
+        speak(message);
     }
 
     return (
