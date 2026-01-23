@@ -5,7 +5,6 @@ import { useVoice } from '../context/VoiceContext';
 const steps = [
     { id: 'name', question: "What is your full name?" },
     { id: 'age', question: "How old are you?" },
-    { id: 'gender', question: "What is your gender?" },
     { id: 'contact', question: "Please say your contact number." }
 ];
 
@@ -47,9 +46,12 @@ const VoiceForm = () => {
     const handleInput = (text) => {
         if (!text) return;
 
+        // Cleaning helper
+        const clean = (t) => t.toLowerCase().replace(/[^a-z0-9]/g, '');
+
         // Anti-echo: If the input is just the question echoed back, ignore it.
-        const currentQ = steps[currentStep].question.toLowerCase().replace(/[^a-z0-9]/g, '');
-        const inputClean = text.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const currentQ = clean(steps[currentStep].question);
+        const inputClean = clean(text);
 
         if (inputClean.includes(currentQ) || (inputClean.length > 5 && currentQ.includes(inputClean))) {
             console.log("Ignored potential echo:", text);
@@ -67,15 +69,16 @@ const VoiceForm = () => {
         setIsProcessing(true);
         console.log("Processing input:", text);
 
-        // Strict Matching Helper
+        // Improved Strict Matching Helper that handles punctuation
         const isAffirmative = (t) => {
-            const words = t.toLowerCase().split(' ');
-            return words.includes('yes') || words.includes('correct') || words.includes('yeah') || t.toLowerCase() === 'yes';
+            // Remove all non-alphanumeric chars for checking
+            const cleaned = t.toLowerCase().replace(/[^a-z]/g, '');
+            return cleaned === 'yes' || cleaned === 'correct' || cleaned === 'yeah' || cleaned === 'yep';
         };
 
         const isNegative = (t) => {
-            const words = t.toLowerCase().split(' ');
-            return words.includes('no') || words.includes('nope') || t.toLowerCase() === 'no';
+            const cleaned = t.toLowerCase().replace(/[^a-z]/g, '');
+            return cleaned === 'no' || cleaned === 'nope' || cleaned === 'nah' || cleaned === 'wrong';
         };
 
         if (confirming) {
@@ -113,14 +116,22 @@ const VoiceForm = () => {
                 // Better to just wait for a clear Yes/No. 
                 // We ask again to clarify.
                 resetTranscript();
-                speak("Please say Yes or No.");
+                speak("Please say just Yes or No.");
             }
         } else {
             // Capture value
             setTempValue(text);
             setConfirming(true);
             resetTranscript();
-            speak(`You said ${text}. Is this correct? Say Yes or No.`);
+
+            // Speak back logic
+            let speakValue = text;
+            if (steps[currentStep].id === 'contact') {
+                // Read digits individually for contact
+                speakValue = text.split('').join(' ');
+            }
+
+            speak(`You said ${speakValue}. Is this correct? Say Yes or No.`);
         }
 
         setIsProcessing(false);
