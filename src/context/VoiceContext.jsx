@@ -129,6 +129,13 @@ export const VoiceProvider = ({ children }) => {
                 audioContextRef.current.resume();
             }
 
+            // Watchdog: If analyser is dead but listening is true, restart
+            if (!analyserRef.current && listening) {
+                console.warn("Analyser lost, restarting...");
+                startListening();
+                return;
+            }
+
             analyserRef.current.getByteFrequencyData(dataArray);
 
             let sum = 0;
@@ -137,8 +144,11 @@ export const VoiceProvider = ({ children }) => {
 
             setAudioLevel(average);
 
-            const SPEECH_THRESHOLD = 2.0;
+            const SPEECH_THRESHOLD = 1.2;
             const SILENCE_DURATION = 1500;
+
+            // Heartbeat: Occasional log to ensure it's running
+            if (Date.now() % 10000 < 20) console.log("Voice loop alive...");
 
             // Logic: Start recording if volume > threshold AND not system speaking
             if (average > SPEECH_THRESHOLD && !isSystemSpeaking) {

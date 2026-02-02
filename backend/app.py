@@ -100,8 +100,14 @@ def transcribe_endpoint():
         elif audio_file.filename.endswith('.mp4'):
              mime_type = "audio/mp4"
         
-        # Build prompt
-        prompt = "Listen to this audio commands and transcribe exactly what is said. Output ONLY the text."
+        # Build prompt specialized for hospital context
+        prompt = """
+        You are a voice assistant for a visually impaired person in a hospital.
+        Transcribe the audio precisely. 
+        Listen for commands like: 'Help', 'Emergency', 'Stop', 'Go to Form', 'Go to Map', 'Read Sign', 'Queue Status', 'Current'.
+        If the audio is faint or noisy, try your best to extract the core command.
+        Output ONLY the transcribed text.
+        """
         content_parts = [{
             "inline_data": {
                 "mime_type": mime_type,

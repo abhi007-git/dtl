@@ -71,6 +71,9 @@ const App = () => {
       resetTranscript();
       speak("Going to Main Menu");
       navigate('/');
+    } else if (lower.includes('are you there') || lower.includes('status check') || lower.includes('is it working')) {
+      resetTranscript();
+      speak("I am here and listening for your commands.");
     }
   }, [transcript, navigate, resetTranscript, speak]);
 
