@@ -3,10 +3,10 @@ import { Html5Qrcode } from 'html5-qrcode';
 import { useVoice } from '../context/VoiceContext';
 
 const NAV_DATA = {
-    "QR_01": "Move right 1 step and walk down 8 steps infront of you.",
-    "QR_02": "Turn left and move forward 2 steps to access the 3rd QR.",
-    "QR_03": "Turn left and walk down 8 steps infront of you to reach floor 1 and turn right.",
-    "QR_04": "Turn left, walk straight 3 steps, turn left and walk straight 4 steps to reach entrance of room 1."
+    "QR_01": "You are at the Entrance. Walk straight 10 steps to reach the Reception and Help Desk.",
+    "QR_02": "You are near the Radiology Department. Turn left for X-ray and MRI rooms.",
+    "QR_03": "You are at the Pharmacy. Please wait here for your medicine to be called.",
+    "QR_04": "Emergency Ward is 5 steps ahead on your right. Door opens automatically."
 };
 
 const QRNavigation = () => {

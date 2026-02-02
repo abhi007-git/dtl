@@ -4,8 +4,8 @@ import { useVoice } from '../context/VoiceContext';
 
 const steps = [
     { id: 'name', question: "What is your full name?" },
-    { id: 'age', question: "How old are you?" },
-    { id: 'contact', question: "Please say your contact number." }
+    { id: 'symptoms', question: "What symptoms are you experiencing?" },
+    { id: 'allergies', question: "Do you have any known allergies? If none, say none." }
 ];
 
 const VoiceForm = () => {

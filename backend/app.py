@@ -138,7 +138,13 @@ def analyze_sign_endpoint():
             
         print("Analyzing sign with Gemini (Direct API)...")
         
-        prompt = "EXTRACT TEXT ONLY. Look closely at the image. Read the big illuminated text on the signboard. Ignore background items. If it says 'RADIOLOGY', output 'Radiology'. Just the text."
+        prompt = """
+        ACT AS A MEDICAL ASSISTANT FOR THE BLIND. 
+        EXTRACT TEXT FROM THE SIGN OR MEDICINE BOX. 
+        If it's a Hospital Sign: Say 'This is the [Department Name]'.
+        If it's a Medicine: Read the Name and Dosage instructions.
+        Be concise. If no clear text is found, say 'No medical text detected'.
+        """
         
         content_parts = [{
             "inline_data": {
