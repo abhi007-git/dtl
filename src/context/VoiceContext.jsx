@@ -22,7 +22,7 @@ export const VoiceProvider = ({ children }) => {
     const streamRef = useRef(null);
 
     // A helper to play short UI sounds for accessibility feedback
-    const playUISound = (freq, duration) => {
+    const playUISound = React.useCallback((freq, duration) => {
         try {
             if (!audioContextRef.current) return;
             const osc = audioContextRef.current.createOscillator();
@@ -30,19 +30,19 @@ export const VoiceProvider = ({ children }) => {
             osc.connect(gain);
             gain.connect(audioContextRef.current.destination);
             osc.frequency.value = freq;
-            gain.gain.setValueAtTime(0.05, audioContextRef.current.currentTime);
+            gain.gain.setValueAtTime(0.1, audioContextRef.current.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.0001, audioContextRef.current.currentTime + duration);
             osc.start();
             osc.stop(audioContextRef.current.currentTime + duration);
         } catch (e) { console.warn("UI Sound failed", e); }
-    };
+    }, []);
 
-    // Speak function
-    const speak = (text) => {
+    // Speak function - Memoized to prevent infinite re-renders in App.jsx
+    const speak = React.useCallback((text) => {
+        if (!text) return;
         setIsSystemSpeaking(true);
         window.speechSynthesis.cancel();
 
-        // Safety timeout: reset speaking state after 12s max
         const safetyTimer = setTimeout(() => {
             console.log("Forcing Speech Reset");
             setIsSystemSpeaking(false);
@@ -55,15 +55,14 @@ export const VoiceProvider = ({ children }) => {
 
         utterance.onend = () => {
             clearTimeout(safetyTimer);
-            // 500ms Cooldown to avoid self-trigger from room echo
-            setTimeout(() => setIsSystemSpeaking(false), 500);
+            setTimeout(() => setIsSystemSpeaking(false), 800);
         };
         utterance.onerror = () => {
             clearTimeout(safetyTimer);
             setIsSystemSpeaking(false);
         };
         window.speechSynthesis.speak(utterance);
-    };
+    }, []);
 
     const sendAudioToServer = async (mimeType = 'audio/webm', audioChunks) => {
         try {
@@ -116,44 +115,47 @@ export const VoiceProvider = ({ children }) => {
         }
     };
 
-    const detectVoiceActivity = () => {
+    const finalizeRecording = React.useCallback(() => {
+        if (!isRecordingRef.current) return;
+        console.log("Finalizing Recording...");
+        setStatus("Processing...");
+        isRecordingRef.current = false;
+        playUISound(440, 0.15); // Clear Stop Beep
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+            try {
+                mediaRecorderRef.current.stop();
+            } catch (e) {
+                console.error("Failed to stop recorder:", e);
+            }
+        }
+    }, [playUISound]);
+
+    const detectVoiceActivity = React.useCallback(() => {
         if (!analyserRef.current || !listening) return;
 
         const bufferLength = analyserRef.current.frequencyBinCount;
         const dataArray = new Uint8Array(bufferLength);
 
         const checkVolume = () => {
-            // Persistent loop check
             if (!listening || !analyserRef.current) return;
 
-            // Critical: Ensure context remains 'running'
             if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
-                audioContextRef.current.resume();
-            }
-
-            // Watchdog: If analyser is dead but listening is true, restart
-            if (!analyserRef.current && listening) {
-                console.warn("Analyser lost, restarting...");
-                startListening();
-                return;
+                audioContextRef.current.resume().catch(() => { });
             }
 
             analyserRef.current.getByteFrequencyData(dataArray);
-
             let sum = 0;
             for (let i = 0; i < bufferLength; i++) sum += dataArray[i];
             const average = sum / bufferLength;
-
             setAudioLevel(average);
 
-            const SPEECH_THRESHOLD = 0.8; // Maximum sensitivity
+            const SPEECH_THRESHOLD = 1.0; // Optimized for hospital hallways
             const SILENCE_DURATION = 1500;
 
-            // Watchdog: If near-total silence detected for 10s while 'listening', restart hardware
             if (average < 0.01 && listening) {
                 if (!window.micDeadCheck) window.micDeadCheck = Date.now();
                 if (Date.now() - window.micDeadCheck > 10000) {
-                    console.log("Audio hardware appears unresponsive, rebooting listener...");
+                    console.log("Hardware unresponsive, rebooting...");
                     window.micDeadCheck = null;
                     startListening();
                     return;
@@ -162,66 +164,39 @@ export const VoiceProvider = ({ children }) => {
                 window.micDeadCheck = Date.now();
             }
 
-            // Logic: Start recording if volume > threshold AND not system speaking
             if (average > SPEECH_THRESHOLD && !isSystemSpeaking) {
                 if (!isRecordingRef.current) {
-                    console.log("Wake Started - Threshold Met");
+                    console.log("Wake Started");
                     isRecordingRef.current = true;
                     chunksRef.current = [];
                     setStatus("Recording...");
-                    playUISound(880, 0.1);
+                    playUISound(880, 0.15); // Clear Start Beep
                     if (mediaRecorderRef.current && mediaRecorderRef.current.state === "inactive") {
-                        try {
-                            mediaRecorderRef.current.start();
-                        } catch (e) {
-                            console.error("Critical: Recorder start failed", e);
-                            isRecordingRef.current = false;
-                        }
+                        try { mediaRecorderRef.current.start(); } catch (e) { isRecordingRef.current = false; }
                     }
                 }
 
                 if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-
                 silenceTimerRef.current = setTimeout(() => {
-                    if (isRecordingRef.current) {
-                        finalizeRecording();
-                    }
+                    if (isRecordingRef.current) finalizeRecording();
                 }, SILENCE_DURATION);
             }
 
             requestAnimationFrame(checkVolume);
         };
         checkVolume();
-    };
+    }, [listening, isSystemSpeaking, finalizeRecording, playUISound]);
 
-    const finalizeRecording = () => {
-        if (!isRecordingRef.current) return;
-        console.log("Finalizing Recording...");
-        setStatus("Processing...");
-        isRecordingRef.current = false;
-        playUISound(440, 0.1); // Low beep - Stop
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
-            try {
-                mediaRecorderRef.current.stop();
-            } catch (e) {
-                console.error("Failed to stop recorder:", e);
-            }
-        }
-    };
-
-    const startListening = async () => {
+    const startListening = React.useCallback(async () => {
         if (listening) return;
         setListening(true);
         setStatus("Starting...");
 
         try {
-            // Ensure context is running (fixes "suspended" state in some browsers)
             const AudioContextClass = window.AudioContext || window.webkitAudioContext;
             const ctx = new AudioContextClass();
-            if (ctx.state === 'suspended') {
-                await ctx.resume();
-            }
             audioContextRef.current = ctx;
+            if (ctx.state === 'suspended') await ctx.resume();
 
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             streamRef.current = stream;
@@ -232,15 +207,12 @@ export const VoiceProvider = ({ children }) => {
             source.connect(analyser);
             analyserRef.current = analyser;
 
-            // Determine supported mime type
             let mimeType = 'audio/webm';
             if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
                 mimeType = 'audio/webm;codecs=opus';
             } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
-                mimeType = 'audio/mp4'; // Safari fallback
+                mimeType = 'audio/mp4';
             }
-
-            console.log(`Using MimeType: ${mimeType}`);
 
             mediaRecorderRef.current = new MediaRecorder(stream, { mimeType });
             mediaRecorderRef.current.ondataavailable = (e) => {
@@ -248,34 +220,24 @@ export const VoiceProvider = ({ children }) => {
             };
 
             mediaRecorderRef.current.onstop = () => {
-                const currentMime = mediaRecorderRef.current?.mimeType || mimeType;
-                // Capture the CURRENT chunks to a local constant so they don't get cleared by the next recording
                 const capturedChunks = [...chunksRef.current];
                 chunksRef.current = [];
-                sendAudioToServer(currentMime, capturedChunks);
+                sendAudioToServer(mimeType, capturedChunks);
             };
 
-            // Wake Lock to keep screen and mic alive
             if ('wakeLock' in navigator) {
                 try { await navigator.wakeLock.request('screen'); } catch (e) { }
             }
 
-            mediaRecorderRef.current.onerror = (e) => {
-                console.error("MediaRecorder Error:", e);
-                // Attempt to restart if it dies
-                setTimeout(() => {
-                    if (listening) startListening();
-                }, 1000);
-            };
-
             setStatus("Listening...");
-            detectVoiceActivity();
+            // detectVoiceActivity() will be triggered by the useEffect
         } catch (err) {
             console.error("Mic Error:", err);
-            setStatus("Mic Error: " + err.message);
-            speak("Microphone error. Please allow access.");
+            setStatus("Mic Error");
+            setListening(false);
+            speak("Microphone access denied.");
         }
-    };
+    }, [listening, speak]);
 
     // MANUAL CONTROLS FOR PRESENTATION
     const startManualRecord = () => {
@@ -293,14 +255,14 @@ export const VoiceProvider = ({ children }) => {
         setStatus("Processing...");
     };
 
-    const stopListening = () => {
+    const stopListening = React.useCallback(() => {
         setListening(false);
         if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
-        if (audioContextRef.current) audioContextRef.current.close();
+        if (audioContextRef.current) audioContextRef.current.close().catch(() => { });
         setStatus("Stopped");
-    };
+    }, []);
 
-    const resetTranscript = () => setTranscript('');
+    const resetTranscript = React.useCallback(() => setTranscript(''), []);
 
     // Persistence Effect: Keep loop alive
     useEffect(() => {
