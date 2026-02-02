@@ -21,6 +21,11 @@ export const VoiceProvider = ({ children }) => {
     const isRecordingRef = useRef(false);
     const streamRef = useRef(null);
 
+    // PERSISTENCE REFS: Keep logic separate from React Render cycle
+    const isSystemSpeakingRef = useRef(false);
+    const listeningRef = useRef(false);
+    const statusRef = useRef("Idle");
+
     // A helper to play short UI sounds for accessibility feedback
     const playUISound = React.useCallback((freq, duration) => {
         try {
@@ -41,11 +46,12 @@ export const VoiceProvider = ({ children }) => {
     const speak = React.useCallback((text) => {
         if (!text) return;
         setIsSystemSpeaking(true);
+        isSystemSpeakingRef.current = true;
         window.speechSynthesis.cancel();
 
         const safetyTimer = setTimeout(() => {
-            console.log("Forcing Speech Reset");
             setIsSystemSpeaking(false);
+            isSystemSpeakingRef.current = false;
         }, 12000);
 
         const utterance = new SpeechSynthesisUtterance(text);
@@ -55,11 +61,15 @@ export const VoiceProvider = ({ children }) => {
 
         utterance.onend = () => {
             clearTimeout(safetyTimer);
-            setTimeout(() => setIsSystemSpeaking(false), 800);
+            setTimeout(() => {
+                setIsSystemSpeaking(false);
+                isSystemSpeakingRef.current = false;
+            }, 800);
         };
         utterance.onerror = () => {
             clearTimeout(safetyTimer);
             setIsSystemSpeaking(false);
+            isSystemSpeakingRef.current = false;
         };
         window.speechSynthesis.speak(utterance);
     }, []);
@@ -117,75 +127,56 @@ export const VoiceProvider = ({ children }) => {
 
     const finalizeRecording = React.useCallback(() => {
         if (!isRecordingRef.current) return;
-        console.log("Finalizing Recording...");
-        setStatus("Processing...");
+        console.log("Finalizing...");
         isRecordingRef.current = false;
-        playUISound(440, 0.15); // Clear Stop Beep
+        playUISound(440, 0.15);
         if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
-            try {
-                mediaRecorderRef.current.stop();
-            } catch (e) {
-                console.error("Failed to stop recorder:", e);
-            }
+            try { mediaRecorderRef.current.stop(); } catch (e) { console.error(e); }
         }
     }, [playUISound]);
 
-    const detectVoiceActivity = React.useCallback(() => {
-        if (!analyserRef.current || !listening) return;
+    // THE MASTER LOOP: One loop to rule them all
+    useEffect(() => {
+        let rafId;
+        const dataArray = new Uint8Array(256);
 
-        const bufferLength = analyserRef.current.frequencyBinCount;
-        const dataArray = new Uint8Array(bufferLength);
-
-        const checkVolume = () => {
-            if (!listening || !analyserRef.current) return;
-
-            if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
-                audioContextRef.current.resume().catch(() => { });
-            }
-
-            analyserRef.current.getByteFrequencyData(dataArray);
-            let sum = 0;
-            for (let i = 0; i < bufferLength; i++) sum += dataArray[i];
-            const average = sum / bufferLength;
-            setAudioLevel(average);
-
-            const SPEECH_THRESHOLD = 1.0; // Optimized for hospital hallways
-            const SILENCE_DURATION = 1500;
-
-            if (average < 0.01 && listening) {
-                if (!window.micDeadCheck) window.micDeadCheck = Date.now();
-                if (Date.now() - window.micDeadCheck > 10000) {
-                    console.log("Hardware unresponsive, rebooting...");
-                    window.micDeadCheck = null;
-                    startListening();
-                    return;
+        const masterLoop = () => {
+            if (listening && analyserRef.current) {
+                // Persistent Context Resume
+                if (audioContextRef.current?.state === 'suspended') {
+                    audioContextRef.current.resume().catch(() => { });
                 }
-            } else {
-                window.micDeadCheck = Date.now();
-            }
 
-            if (average > SPEECH_THRESHOLD && !isSystemSpeaking) {
-                if (!isRecordingRef.current) {
-                    console.log("Wake Started");
-                    isRecordingRef.current = true;
-                    chunksRef.current = [];
-                    setStatus("Recording...");
-                    playUISound(880, 0.15); // Clear Start Beep
-                    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "inactive") {
-                        try { mediaRecorderRef.current.start(); } catch (e) { isRecordingRef.current = false; }
+                analyserRef.current.getByteFrequencyData(dataArray);
+                let sum = 0;
+                for (let i = 0; i < 256; i++) sum += dataArray[i];
+                const average = sum / 256;
+                setAudioLevel(average);
+
+                // ULTRA SENSITIVE TRIGGER
+                const THRESHOLD = 0.5;
+                if (average > THRESHOLD && !isSystemSpeakingRef.current) {
+                    if (!isRecordingRef.current) {
+                        isRecordingRef.current = true;
+                        chunksRef.current = [];
+                        playUISound(880, 0.15);
+                        if (mediaRecorderRef.current?.state === "inactive") {
+                            try { mediaRecorderRef.current.start(); } catch (e) { }
+                        }
                     }
+
+                    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+                    silenceTimerRef.current = setTimeout(() => {
+                        finalizeRecording();
+                    }, 1500);
                 }
-
-                if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-                silenceTimerRef.current = setTimeout(() => {
-                    if (isRecordingRef.current) finalizeRecording();
-                }, SILENCE_DURATION);
             }
-
-            requestAnimationFrame(checkVolume);
+            rafId = requestAnimationFrame(masterLoop);
         };
-        checkVolume();
-    }, [listening, isSystemSpeaking, finalizeRecording, playUISound]);
+
+        rafId = requestAnimationFrame(masterLoop);
+        return () => cancelAnimationFrame(rafId);
+    }, [listening, finalizeRecording, playUISound]);
 
     const startListening = React.useCallback(async () => {
         if (listening) return;
