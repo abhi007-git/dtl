@@ -9,7 +9,7 @@ const QueueStatus = () => {
     const [userToken, setUserToken] = useState(null);
 
     useEffect(() => {
-        speak("Queue System Active. Welcome. Your turn will be announced automatically. To hear the current serving number, say current.");
+        speak("Queue System Active. Welcome. Your turn will be announced automatically. If you have a token number, please say, my token is, followed by your number. To hear the current serving number, say current.");
     }, []);
 
     // Check valid voice commands for queue

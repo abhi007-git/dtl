@@ -39,49 +39,49 @@ const SignReader = () => {
 
         setImage(imageSrc);
         setProcessing(true);
-        speak("Analyzing...");
+        speak("Analyzing sign. Please hold steady.");
+
+        // PRO-TIP: Start a synthetic "thinking" pulse so the user knows the app is working
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const pulseInterval = setInterval(() => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.frequency.value = 440;
+            gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.1);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.1);
+        }, 800);
 
         try {
-            // Remove data URI header if present, but backend handles it too
             const base64Image = imageSrc.split(',')[1];
-
-            // Use our secure backend endpoint
             const response = await fetch('/api/analyze_sign', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    image: base64Image
-                })
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: base64Image })
             });
 
             if (!response.ok) {
-                if (response.status === 429) {
-                    speak("I am reading too fast. Please wait a moment.");
-                    return;
-                }
-                const errData = await response.text();
-                // console.error("API Error:", errData);
-                speak("Connection error. Please check your internet.");
+                speak("Connection error. Please try again.");
                 return;
             }
 
             const data = await response.json();
-            console.log("Analysis Response:", data);
-
             const textFound = data.text ? data.text.trim() : "";
 
             if (textFound && textFound.toLowerCase() !== "no text found") {
                 setText(textFound);
                 speak("The sign says: " + textFound);
             } else {
-                speak("I couldn't identify the sign. Please try again.");
+                speak("I couldn't identify the sign. Please try moving the camera and scanning again.");
             }
         } catch (err) {
-            console.error("Scanning Error:", err);
             speak("Scanning failed. Please try again.");
         } finally {
+            clearInterval(pulseInterval);
+            audioCtx.close();
             setProcessing(false);
         }
     };
