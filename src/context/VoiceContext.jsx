@@ -63,14 +63,13 @@ export const VoiceProvider = ({ children }) => {
         window.speechSynthesis.speak(utterance);
     };
 
-    const sendAudioToServer = async (mimeType = 'audio/webm') => {
+    const sendAudioToServer = async (mimeType = 'audio/webm', audioChunks) => {
         try {
-            const blob = new Blob(chunksRef.current, { type: mimeType });
+            const blob = new Blob(audioChunks, { type: mimeType });
             console.log(`Sending Audio: ${blob.size} bytes, Type: ${mimeType}`);
 
-            // Lower threshold to 100 bytes to catch short commands
-            if (blob.size < 100) {
-                console.log("Audio too short/empty, ignoring.");
+            if (blob.size < 500) { // Slightly higher threshold to ignore noise
+                console.log("Audio too small, ignoring.");
                 return;
             }
 
@@ -78,7 +77,7 @@ export const VoiceProvider = ({ children }) => {
             const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
             formData.append('audio', blob, `command.${ext}`);
 
-            setStatus("Sending...");
+            setStatus("Analyzing...");
             const response = await fetch('/api/transcribe', {
                 method: 'POST',
                 body: formData
@@ -146,11 +145,17 @@ export const VoiceProvider = ({ children }) => {
                 if (!isRecordingRef.current) {
                     console.log("Wake Word / Voice Detected");
                     isRecordingRef.current = true;
+                    // Reset bits to capture clean data
                     chunksRef.current = [];
                     setStatus("Recording...");
                     playUISound(880, 0.1); // High beep - Start
                     if (mediaRecorderRef.current && mediaRecorderRef.current.state === "inactive") {
-                        try { mediaRecorderRef.current.start(); } catch (e) { }
+                        try {
+                            mediaRecorderRef.current.start();
+                        } catch (e) {
+                            console.error("Failed to start MediaRecorder", e);
+                            isRecordingRef.current = false;
+                        }
                     }
                 }
 
@@ -223,8 +228,16 @@ export const VoiceProvider = ({ children }) => {
 
             mediaRecorderRef.current.onstop = () => {
                 const currentMime = mediaRecorderRef.current?.mimeType || mimeType;
-                sendAudioToServer(currentMime);
+                // Capture the CURRENT chunks to a local constant so they don't get cleared by the next recording
+                const capturedChunks = [...chunksRef.current];
+                chunksRef.current = [];
+                sendAudioToServer(currentMime, capturedChunks);
             };
+
+            // Wake Lock to keep screen and mic alive
+            if ('wakeLock' in navigator) {
+                try { await navigator.wakeLock.request('screen'); } catch (e) { }
+            }
 
             mediaRecorderRef.current.onerror = (e) => {
                 console.error("MediaRecorder Error:", e);
