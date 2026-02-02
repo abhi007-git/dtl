@@ -95,9 +95,10 @@ const SignReader = () => {
 
     return (
         <div className="container">
-            <h1 className="hc-text mb-4 text-center">Signboard Reader (Gemini AI)</h1>
+            <h1 className="hc-text mb-4 text-center">Medical Sign & Medicine Reader</h1>
 
             <div className="card max-w-2xl mx-auto flex flex-col items-center gap-4">
+                <p className="text-sm text-accent-secondary mb-2">Identify departments or medicine dosages</p>
                 <div className="relative w-full aspect-video bg-black rounded overflow-hidden border border-gray-700">
                     {!image ? (
                         <Webcam

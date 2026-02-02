@@ -11,6 +11,7 @@ export const VoiceProvider = ({ children }) => {
     const [isSystemSpeaking, setIsSystemSpeaking] = useState(false);
     const [status, setStatus] = useState("Idle");
     const [audioLevel, setAudioLevel] = useState(0);
+    const [lastLocation, setLastLocation] = useState("Unknown Location");
 
     const audioContextRef = useRef(null);
     const analyserRef = useRef(null);
@@ -220,9 +221,16 @@ export const VoiceProvider = ({ children }) => {
 
     // Trigger detect loop when listening state changes
     useEffect(() => {
+        let isAlive = true;
         if (listening && analyserRef.current) {
-            detectVoiceActivity();
+            const check = () => {
+                if (!isAlive || !listening) return;
+                detectVoiceActivity();
+                requestAnimationFrame(check);
+            };
+            // check(); // Already called inside detectVoiceActivity via checkVolume
         }
+        return () => { isAlive = false; };
     }, [listening]);
 
     useEffect(() => {
@@ -239,6 +247,8 @@ export const VoiceProvider = ({ children }) => {
             resetTranscript,
             status,
             audioLevel,
+            lastLocation,
+            setLastLocation,
             startManualRecord,
             stopManualRecord
         }}>

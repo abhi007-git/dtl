@@ -11,7 +11,7 @@ import QRNavigation from './pages/QRNavigation';
 import SignReader from './pages/SignReader';
 
 const App = () => {
-  const { transcript, resetTranscript, speak, startListening, stopListening, listening } = useVoice();
+  const { transcript, resetTranscript, speak, startListening, lastLocation } = useVoice();
   const navigate = useNavigate();
   const location = useLocation();
   const [hasInteracted, setHasInteracted] = React.useState(false);
@@ -26,10 +26,15 @@ const App = () => {
     if (lower.includes('help') || lower.includes('emergency') || lower.includes('medical alert')) {
       resetTranscript();
       setEmergency(true);
-      speak("Emergency Alert Activated. Assistance has been notified. Please stay where you are. I am alerting the medical staff.");
 
-      // Stop emergency after 15 seconds or via "stop"
-      setTimeout(() => setEmergency(false), 15000);
+      const locMessage = lastLocation !== "Unknown Location"
+        ? ` You are near the ${lastLocation}.`
+        : " Location tracking is active.";
+
+      speak("Emergency Alert Activated. Assistance has been notified." + locMessage + " Please stay where you are. I am alerting the medical staff.");
+
+      // Stop emergency after 20 seconds or via "stop"
+      setTimeout(() => setEmergency(false), 20000);
       return;
     }
 
@@ -80,6 +85,26 @@ const App = () => {
 
   return (
     <div className={`app-container ${emergency ? 'emergency-mode' : ''}`}>
+      {emergency && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 10001,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(255,0,0,0.9)', color: 'white',
+          fontSize: '2rem', fontWeight: 'bold', textAlign: 'center', padding: '20px'
+        }}>
+          <h1 style={{ fontSize: '4rem', marginBottom: '20px' }}>⚠️ HELP ⚠️</h1>
+          <p>ASSISTANCE REQUESTED</p>
+          <p style={{ fontSize: '1rem', marginTop: '20px' }}>Staff has been notified of your location.</p>
+          <button
+            onClick={() => { setEmergency(false); speak("Alert cancelled."); }}
+            className="hc-button"
+            style={{ marginTop: '40px', background: 'white', color: 'red', borderColor: 'white' }}
+          >
+            Cancel Alert
+          </button>
+        </div>
+      )}
+
       {!hasInteracted ? (
         <div
           onClick={handleInitialInteraction}
@@ -88,16 +113,15 @@ const App = () => {
             background: 'rgba(0,0,0,0.95)', color: '#ffffff',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
             textAlign: 'center', padding: '20px',
-            touchAction: 'manipulation', // Optimization for touch devices
-            userSelect: 'none',
-            WebkitUserSelect: 'none'
+            touchAction: 'manipulation',
+            userSelect: 'none'
           }}
         >
           <div style={{ fontSize: '5rem', marginBottom: '20px' }}>👆</div>
-          <h1 style={{ fontSize: '2.5rem', marginBottom: '15px', fontWeight: 'bold' }}>Tap Screen to Start</h1>
-          <p style={{ fontSize: '1.2rem', opacity: 0.8, maxWidth: '300px' }}>
-            Visual Assistance System<br />
-            <span style={{ fontSize: '0.9rem', marginTop: '10px', display: 'block' }}>(Works with TalkBack / VoiceOver)</span>
+          <h1 style={{ fontSize: '2.5rem', marginBottom: '15px', fontWeight: 'bold' }}>Tap to Activate Assistant</h1>
+          <p style={{ fontSize: '1.2rem', opacity: 0.8 }}>
+            Specialized Hospital Assistant<br />
+            <span style={{ fontSize: '0.9rem', marginTop: '10px', display: 'block' }}>(Voice & Vision Ready)</span>
           </p>
         </div>
       ) : null}

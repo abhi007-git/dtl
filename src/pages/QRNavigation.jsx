@@ -10,7 +10,7 @@ const NAV_DATA = {
 };
 
 const QRNavigation = () => {
-    const { speak } = useVoice();
+    const { speak, setLastLocation } = useVoice();
     const [data, setData] = useState('Scanning...');
     const scannerRef = useRef(null);
     const lastScanTime = useRef(0);
@@ -56,6 +56,7 @@ const QRNavigation = () => {
         lastScanTime.current = now;
         setData(decodedText);
         const message = NAV_DATA[decodedText] || `Unknown Location Code: ${decodedText}`;
+        setLastLocation(decodedText); // Update global state
         speak(message);
     };
 
