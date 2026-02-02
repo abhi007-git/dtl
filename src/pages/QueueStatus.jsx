@@ -9,23 +9,28 @@ const QueueStatus = () => {
     const [userToken, setUserToken] = useState(null);
 
     useEffect(() => {
-        speak("Queue System Active. Current token is " + currentToken);
+        speak("Queue System Active. Welcome. Your turn will be announced automatically. To hear the current serving number, say current.");
     }, []);
 
     // Check valid voice commands for queue
     useEffect(() => {
         const cmd = transcript.toLowerCase();
 
-        // Admin commands via voice too? strictly admin interface says "admin easily increments"
         // User says "My token is X"
         if (cmd.includes('my token is')) {
             const match = cmd.match(/(\d+)/);
             if (match) {
                 const token = parseInt(match[0]);
                 setUserToken(token);
-                speak(`Registered. Your token is ${token}. We will notify you.`);
+                speak(`Registered. Your token is ${token}. Now serving ${currentToken}. I will notify you when it is your turn.`);
                 resetTranscript();
             }
+        }
+
+        // Feature: "Current" command
+        if (cmd.includes('current') || cmd.includes('what is the token')) {
+            speak(`The current serving token is ${currentToken}.`);
+            resetTranscript();
         }
 
         // Admin voice simulation
@@ -37,7 +42,7 @@ const QueueStatus = () => {
             }
             resetTranscript();
         }
-    }, [transcript]);
+    }, [transcript, currentToken]);
 
     // Alert when match or missed
     useEffect(() => {

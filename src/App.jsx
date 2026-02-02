@@ -21,15 +21,23 @@ const App = () => {
     // We check the transcript coming from Context
     const lower = transcript.toLowerCase();
 
+    // GLOBAL STOP COMMAND
+    if (lower.includes('stop') || lower.includes('cancel') || lower.includes('exit')) {
+      resetTranscript();
+      speak("Stopping current action. Returning to main menu.");
+      navigate('/');
+      return;
+    }
+
     if (lower.includes('go to form') || lower.includes('open form')) {
       resetTranscript();
       speak("Opening Voice Form");
       navigate('/form');
-    } else if (lower.includes('go to token')) {
+    } else if (lower.includes('go to token') || lower.includes('queue status')) {
       resetTranscript();
       speak("Opening Token System");
       navigate('/queue');
-    } else if (lower.includes('go to map') || lower.includes('navigation')) {
+    } else if (lower.includes('go to map') || lower.includes('navigation') || lower.includes('open map')) {
       resetTranscript();
       speak("Opening Navigation System");
       navigate('/qr');

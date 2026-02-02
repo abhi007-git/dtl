@@ -95,15 +95,15 @@ const VoiceForm = () => {
                     setCurrentStep(nextStep);
                     setConfirming(false);
                     setTempValue('');
-                    speak("Saved. " + steps[nextStep].question);
+                    speak("Saved. Moving to next question. " + steps[nextStep].question);
                 } else {
-                    speak("Form completed. Submitting data. Thank you.");
+                    speak("Form successfully completed. All your data has been submitted. Taking you back to the home page now. Thank you.");
                     console.log("Submitted:", newData);
 
                     // Navigate back to home after a short delay to allow speech to finish
                     setTimeout(() => {
                         navigate('/');
-                    }, 4000);
+                    }, 6000);
                 }
             } else if (isNegative(text)) {
                 // Retry

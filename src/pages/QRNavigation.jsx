@@ -17,7 +17,7 @@ const QRNavigation = () => {
     const SCAN_COOLDOWN = 5000; // 5 seconds
 
     useEffect(() => {
-        speak("Navigation Mode. Scanning for QR codes.");
+        speak("Navigation Mode. Scanning for QR codes and locations is now active.");
 
         const html5QrCode = new Html5Qrcode("reader");
         scannerRef.current = html5QrCode;

@@ -106,8 +106,8 @@ export const VoiceProvider = ({ children }) => {
             // Update Visualizer
             setAudioLevel(average);
 
-            const SPEECH_THRESHOLD = 5; // Lowered from 20 to 5 for better sensitivity
-            const SILENCE_DURATION = 1500;
+            const SPEECH_THRESHOLD = 3; // Even more sensitive
+            const SILENCE_DURATION = 1200; // Faster trigger (1.2s instead of 1.5s)
 
             // Only record if system isn't speaking (to avoid self-trigger)
             if (average > SPEECH_THRESHOLD && !isSystemSpeaking) {
