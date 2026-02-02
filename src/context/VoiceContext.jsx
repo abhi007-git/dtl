@@ -21,6 +21,22 @@ export const VoiceProvider = ({ children }) => {
     const isRecordingRef = useRef(false);
     const streamRef = useRef(null);
 
+    // A helper to play short UI sounds for accessibility feedback
+    const playUISound = (freq, duration) => {
+        try {
+            if (!audioContextRef.current) return;
+            const osc = audioContextRef.current.createOscillator();
+            const gain = audioContextRef.current.createGain();
+            osc.connect(gain);
+            gain.connect(audioContextRef.current.destination);
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0.05, audioContextRef.current.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.0001, audioContextRef.current.currentTime + duration);
+            osc.start();
+            osc.stop(audioContextRef.current.currentTime + duration);
+        } catch (e) { console.warn("UI Sound failed", e); }
+    };
+
     // Speak function
     const speak = (text) => {
         setIsSystemSpeaking(true);
@@ -106,10 +122,10 @@ export const VoiceProvider = ({ children }) => {
         const dataArray = new Uint8Array(bufferLength);
 
         const checkVolume = () => {
-            // Stop loop if stopped listening or if context is suspended
+            // Persistent loop check
             if (!listening || !analyserRef.current) return;
 
-            // Auto-resume if suspended (important for long-running mobile apps)
+            // Critical: Ensure context remains 'running'
             if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
                 audioContextRef.current.resume();
             }
@@ -120,32 +136,26 @@ export const VoiceProvider = ({ children }) => {
             for (let i = 0; i < bufferLength; i++) sum += dataArray[i];
             const average = sum / bufferLength;
 
-            // Update Visualizer
             setAudioLevel(average);
 
-            const SPEECH_THRESHOLD = 2; // Even more sensitive for hospitals
-            const SILENCE_DURATION = 1500; // 1.5s for more natural pauses
+            const SPEECH_THRESHOLD = 2.0;
+            const SILENCE_DURATION = 1500;
 
-            // We detect speech
+            // Logic: Start recording if volume > threshold AND not system speaking
             if (average > SPEECH_THRESHOLD && !isSystemSpeaking) {
                 if (!isRecordingRef.current) {
-                    console.log("Speech Started...");
-                    setStatus("Recording...");
+                    console.log("Wake Word / Voice Detected");
                     isRecordingRef.current = true;
                     chunksRef.current = [];
+                    setStatus("Recording...");
+                    playUISound(880, 0.1); // High beep - Start
                     if (mediaRecorderRef.current && mediaRecorderRef.current.state === "inactive") {
-                        try {
-                            mediaRecorderRef.current.start();
-                        } catch (e) {
-                            console.error("Failed to start recorder:", e);
-                        }
+                        try { mediaRecorderRef.current.start(); } catch (e) { }
                     }
                 }
 
-                // Any speech resets the silence timer
                 if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
 
-                // Start silence timer to finalize chunk
                 silenceTimerRef.current = setTimeout(() => {
                     if (isRecordingRef.current) {
                         finalizeRecording();
@@ -163,6 +173,7 @@ export const VoiceProvider = ({ children }) => {
         console.log("Finalizing Recording...");
         setStatus("Processing...");
         isRecordingRef.current = false;
+        playUISound(440, 0.1); // Low beep - Stop
         if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
             try {
                 mediaRecorderRef.current.stop();
@@ -257,12 +268,15 @@ export const VoiceProvider = ({ children }) => {
 
     const resetTranscript = () => setTranscript('');
 
-    // Safety: Ensure voices are loaded (browsers load them async)
+    // Persistence Effect: Keep loop alive
     useEffect(() => {
-        window.speechSynthesis.getVoices();
-    }, []);
+        if (listening && analyserRef.current) {
+            detectVoiceActivity();
+        }
+    }, [listening]);
 
     useEffect(() => {
+        window.speechSynthesis.getVoices();
         return () => stopListening();
     }, []);
 
