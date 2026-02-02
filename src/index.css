@@ -103,3 +103,14 @@ button {
   background: var(--accent-primary);
   box-shadow: 0 0 10px var(--accent-primary);
 }
+
+.emergency-mode {
+  animation: emergency-flash 1s infinite;
+  background-color: #ff0000 !important;
+}
+
+@keyframes emergency-flash {
+  0% { opacity: 1; }
+  50% { opacity: 0.3; }
+  100% { opacity: 1; }
+}

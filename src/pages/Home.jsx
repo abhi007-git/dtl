@@ -8,7 +8,7 @@ const Home = () => {
     const navigate = useNavigate();
 
     useEffect(() => {
-        speak("Welcome. Please say a command like 'Go to Form', or 'Read Sign'.");
+        speak("Welcome. Please say a command like 'Go to Form', 'Read Sign', or say 'Help' if you are in an emergency.");
     }, []); // Run once on mount
 
     const modules = [

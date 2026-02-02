@@ -16,15 +16,32 @@ const App = () => {
   const location = useLocation();
   const [hasInteracted, setHasInteracted] = React.useState(false);
 
+  const [emergency, setEmergency] = React.useState(false);
+
   useEffect(() => {
     // Basic Global Navigation Commands
-    // We check the transcript coming from Context
     const lower = transcript.toLowerCase();
+
+    // EMERGENCY / HELP COMMAND
+    if (lower.includes('help') || lower.includes('emergency') || lower.includes('medical alert')) {
+      resetTranscript();
+      setEmergency(true);
+      speak("Emergency Alert Activated. Assistance has been notified. Please stay where you are. I am alerting the medical staff.");
+
+      // Stop emergency after 15 seconds or via "stop"
+      setTimeout(() => setEmergency(false), 15000);
+      return;
+    }
 
     // GLOBAL STOP COMMAND
     if (lower.includes('stop') || lower.includes('cancel') || lower.includes('exit')) {
       resetTranscript();
-      speak("Stopping current action. Returning to main menu.");
+      if (emergency) {
+        setEmergency(false);
+        speak("Emergency Alert Cancelled. Resetting to main menu.");
+      } else {
+        speak("Stopping current action. Returning to main menu.");
+      }
       navigate('/');
       return;
     }
@@ -62,7 +79,7 @@ const App = () => {
   };
 
   return (
-    <div className="app-container">
+    <div className={`app-container ${emergency ? 'emergency-mode' : ''}`}>
       {!hasInteracted ? (
         <div
           onClick={handleInitialInteraction}
