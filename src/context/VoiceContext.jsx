@@ -42,19 +42,21 @@ export const VoiceProvider = ({ children }) => {
         setIsSystemSpeaking(true);
         window.speechSynthesis.cancel();
 
-        // Safety timeout: reset speaking state after 10s max
-        const safetyTimer = setTimeout(() => setIsSystemSpeaking(false), 10000);
+        // Safety timeout: reset speaking state after 12s max
+        const safetyTimer = setTimeout(() => {
+            console.log("Forcing Speech Reset");
+            setIsSystemSpeaking(false);
+        }, 12000);
 
         const utterance = new SpeechSynthesisUtterance(text);
-
-        // Select a natural voice if available
         const voices = window.speechSynthesis.getVoices();
         const preferredVoice = voices.find(v => v.lang.startsWith("en-") && (v.name.includes("US") || v.name.includes("Google")));
         if (preferredVoice) utterance.voice = preferredVoice;
 
         utterance.onend = () => {
             clearTimeout(safetyTimer);
-            setIsSystemSpeaking(false);
+            // 500ms Cooldown to avoid self-trigger from room echo
+            setTimeout(() => setIsSystemSpeaking(false), 500);
         };
         utterance.onerror = () => {
             clearTimeout(safetyTimer);
@@ -144,26 +146,35 @@ export const VoiceProvider = ({ children }) => {
 
             setAudioLevel(average);
 
-            const SPEECH_THRESHOLD = 1.2;
+            const SPEECH_THRESHOLD = 0.8; // Maximum sensitivity
             const SILENCE_DURATION = 1500;
 
-            // Heartbeat: Occasional log to ensure it's running
-            if (Date.now() % 10000 < 20) console.log("Voice loop alive...");
+            // Watchdog: If near-total silence detected for 10s while 'listening', restart hardware
+            if (average < 0.01 && listening) {
+                if (!window.micDeadCheck) window.micDeadCheck = Date.now();
+                if (Date.now() - window.micDeadCheck > 10000) {
+                    console.log("Audio hardware appears unresponsive, rebooting listener...");
+                    window.micDeadCheck = null;
+                    startListening();
+                    return;
+                }
+            } else {
+                window.micDeadCheck = Date.now();
+            }
 
             // Logic: Start recording if volume > threshold AND not system speaking
             if (average > SPEECH_THRESHOLD && !isSystemSpeaking) {
                 if (!isRecordingRef.current) {
-                    console.log("Wake Word / Voice Detected");
+                    console.log("Wake Started - Threshold Met");
                     isRecordingRef.current = true;
-                    // Reset bits to capture clean data
                     chunksRef.current = [];
                     setStatus("Recording...");
-                    playUISound(880, 0.1); // High beep - Start
+                    playUISound(880, 0.1);
                     if (mediaRecorderRef.current && mediaRecorderRef.current.state === "inactive") {
                         try {
                             mediaRecorderRef.current.start();
                         } catch (e) {
-                            console.error("Failed to start MediaRecorder", e);
+                            console.error("Critical: Recorder start failed", e);
                             isRecordingRef.current = false;
                         }
                     }
