@@ -25,12 +25,23 @@ export const VoiceProvider = ({ children }) => {
     const speak = (text) => {
         setIsSystemSpeaking(true);
         window.speechSynthesis.cancel();
+
+        // Safety timeout: reset speaking state after 10s max
+        const safetyTimer = setTimeout(() => setIsSystemSpeaking(false), 10000);
+
         const utterance = new SpeechSynthesisUtterance(text);
+
+        // Select a natural voice if available
         const voices = window.speechSynthesis.getVoices();
-        const preferredVoice = voices.find(v => v.name.includes("US English") || v.name.includes("Samantha"));
+        const preferredVoice = voices.find(v => v.lang.startsWith("en-") && (v.name.includes("US") || v.name.includes("Google")));
         if (preferredVoice) utterance.voice = preferredVoice;
-        utterance.rate = 1.0;
+
         utterance.onend = () => {
+            clearTimeout(safetyTimer);
+            setIsSystemSpeaking(false);
+        };
+        utterance.onerror = () => {
+            clearTimeout(safetyTimer);
             setIsSystemSpeaking(false);
         };
         window.speechSynthesis.speak(utterance);
@@ -95,8 +106,13 @@ export const VoiceProvider = ({ children }) => {
         const dataArray = new Uint8Array(bufferLength);
 
         const checkVolume = () => {
-            // Stop loop if stopped listening
+            // Stop loop if stopped listening or if context is suspended
             if (!listening || !analyserRef.current) return;
+
+            // Auto-resume if suspended (important for long-running mobile apps)
+            if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+                audioContextRef.current.resume();
+            }
 
             analyserRef.current.getByteFrequencyData(dataArray);
 
@@ -107,33 +123,32 @@ export const VoiceProvider = ({ children }) => {
             // Update Visualizer
             setAudioLevel(average);
 
-            const SPEECH_THRESHOLD = 3; // Even more sensitive
-            const SILENCE_DURATION = 1200; // Faster trigger (1.2s instead of 1.5s)
+            const SPEECH_THRESHOLD = 2; // Even more sensitive for hospitals
+            const SILENCE_DURATION = 1500; // 1.5s for more natural pauses
 
-            // Only record if system isn't speaking (to avoid self-trigger)
+            // We detect speech
             if (average > SPEECH_THRESHOLD && !isSystemSpeaking) {
                 if (!isRecordingRef.current) {
-                    console.log("Speech Detected - Recording...");
+                    console.log("Speech Started...");
                     setStatus("Recording...");
                     isRecordingRef.current = true;
                     chunksRef.current = [];
                     if (mediaRecorderRef.current && mediaRecorderRef.current.state === "inactive") {
-                        mediaRecorderRef.current.start();
+                        try {
+                            mediaRecorderRef.current.start();
+                        } catch (e) {
+                            console.error("Failed to start recorder:", e);
+                        }
                     }
                 }
 
-                // Reset silence timer on speech
+                // Any speech resets the silence timer
                 if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
 
-                // Set silence timer to stop recording
+                // Start silence timer to finalize chunk
                 silenceTimerRef.current = setTimeout(() => {
                     if (isRecordingRef.current) {
-                        console.log("Silence Detected - Stopping...");
-                        setStatus("Processing...");
-                        isRecordingRef.current = false;
-                        if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
-                            mediaRecorderRef.current.stop();
-                        }
+                        finalizeRecording();
                     }
                 }, SILENCE_DURATION);
             }
@@ -141,6 +156,20 @@ export const VoiceProvider = ({ children }) => {
             requestAnimationFrame(checkVolume);
         };
         checkVolume();
+    };
+
+    const finalizeRecording = () => {
+        if (!isRecordingRef.current) return;
+        console.log("Finalizing Recording...");
+        setStatus("Processing...");
+        isRecordingRef.current = false;
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+            try {
+                mediaRecorderRef.current.stop();
+            } catch (e) {
+                console.error("Failed to stop recorder:", e);
+            }
+        }
     };
 
     const startListening = async () => {
@@ -181,11 +210,20 @@ export const VoiceProvider = ({ children }) => {
                 if (e.data.size > 0) chunksRef.current.push(e.data);
             };
 
-            // Pass the mimeType to the sender so it prepares the Blob correctly
-            mediaRecorderRef.current.onstop = () => sendAudioToServer(mimeType);
+            mediaRecorderRef.current.onstop = () => {
+                const currentMime = mediaRecorderRef.current?.mimeType || mimeType;
+                sendAudioToServer(currentMime);
+            };
+
+            mediaRecorderRef.current.onerror = (e) => {
+                console.error("MediaRecorder Error:", e);
+                // Attempt to restart if it dies
+                setTimeout(() => {
+                    if (listening) startListening();
+                }, 1000);
+            };
 
             setStatus("Listening...");
-            // Start logic
             detectVoiceActivity();
         } catch (err) {
             console.error("Mic Error:", err);
@@ -219,19 +257,10 @@ export const VoiceProvider = ({ children }) => {
 
     const resetTranscript = () => setTranscript('');
 
-    // Trigger detect loop when listening state changes
+    // Safety: Ensure voices are loaded (browsers load them async)
     useEffect(() => {
-        let isAlive = true;
-        if (listening && analyserRef.current) {
-            const check = () => {
-                if (!isAlive || !listening) return;
-                detectVoiceActivity();
-                requestAnimationFrame(check);
-            };
-            // check(); // Already called inside detectVoiceActivity via checkVolume
-        }
-        return () => { isAlive = false; };
-    }, [listening]);
+        window.speechSynthesis.getVoices();
+    }, []);
 
     useEffect(() => {
         return () => stopListening();
